@@ -143,8 +143,8 @@ static int byt_es8316_aif1_hw_params(struct snd_pcm_substream *substream,
 	int ret;
 
 	ret = snd_soc_dai_set_sysclk(codec_dai, 19200000,
-				     params_rate(params) * 512,
-				     SND_SOC_CLOCK_IN);
+		params_rate(params) * 512,
+		SND_SOC_CLOCK_IN);
 
 	if (ret < 0) {
 		dev_err(rtd->dev, "can't set codec clock %d\n", ret);
@@ -161,18 +161,14 @@ static int byt_es8316_init(struct snd_soc_pcm_runtime *runtime)
 	int ret;
 	struct snd_soc_card *card = runtime->card;
 	struct byt_es8316_private *priv = snd_soc_card_get_drvdata(card);
-	printk("!!!!!!!!!!!!!!!!!!!!!!!Enter Into %s \n", __func__);
 	card->dapm.idle_bias_off = true;
 	ret = clk_prepare_enable(priv->mclk);
 	if(!ret)
 	{
-		printk("clk_prepare_enable, ret = 0\n");
 		clk_disable_unprepare(priv->mclk);
 	}
 	ret = clk_set_rate(priv->mclk, 19200000);
-	if (ret)
-		printk("%s, unable to set MCLK rate\n", __func__);
-	printk("Exit %s\n", __func__);
+	
 	return ret;
 }
 
@@ -190,9 +186,8 @@ static int byt_es8316_codec_fixup(struct snd_soc_pcm_runtime *rtd,
 	struct snd_interval *rate = hw_param_interval(params,
 			SNDRV_PCM_HW_PARAM_RATE);
 	struct snd_interval *channels = hw_param_interval(params,
-						SNDRV_PCM_HW_PARAM_CHANNELS);
+			SNDRV_PCM_HW_PARAM_CHANNELS);
 	int ret;
-	printk("Enter into %s\n", __func__);
 	/* The DSP will covert the FE rate to 48k, stereo */
 	rate->min = rate->max = 48000;
 	channels->min = channels->max = 2;
@@ -205,21 +200,18 @@ static int byt_es8316_codec_fixup(struct snd_soc_pcm_runtime *rtd,
 	 * dai_set_tdm_slot() since there is no other API exposed
 	 */
 	ret = snd_soc_dai_set_fmt(rtd->cpu_dai,
-				SND_SOC_DAIFMT_I2S     |
-				SND_SOC_DAIFMT_NB_IF   |
-				SND_SOC_DAIFMT_CBS_CFS
+			SND_SOC_DAIFMT_I2S     |
+			SND_SOC_DAIFMT_NB_IF   |
+			SND_SOC_DAIFMT_CBS_CFS
 		);
 	if (ret < 0) {
-		printk("can't set format to I2S, err %d\n", ret);
 		return ret;
 	}
 
 	ret = snd_soc_dai_set_tdm_slot(rtd->cpu_dai, 0x3, 0x3, 2, 24);
 	if (ret < 0) {
-		printk("can't set I2S config, err %d\n", ret);
 		return ret;
 	}
-	printk("Exit %s\n", __func__);
 	return 0;
 }
 
@@ -310,68 +302,30 @@ static struct snd_soc_card byt_es8316_card = {
 	.num_controls = ARRAY_SIZE(byt_es8316_controls),
 };
 
-static char byt_es8316_codec_name[16]; /* i2c-<HID>:00 with HID being 8 chars */
-
 static int snd_byt_es8316_mc_probe(struct platform_device *pdev)
 {
 	int ret_val = 0;
 	struct byt_es8316_private *priv;
-	struct sst_acpi_mach *mach;
-	const char *i2c_name = NULL;
-	int i;
-	int dai_index;
-	printk("!!!!!!!!!!!!!!!!!!!!!!!Enter Into %s \n", __func__);
 	priv = devm_kzalloc(&pdev->dev, sizeof(*priv), GFP_ATOMIC);
 	if (!priv)
 		return -ENOMEM;
 	/* register the soc card */
 	byt_es8316_card.dev = &pdev->dev;
-	mach = byt_es8316_card.dev->platform_data;
-
-	/* fix index of codec dai */
-	dai_index = MERR_DPCM_COMPR + 1;
-	printk("%s, dai_index = %d \n", __func__, dai_index);
-	printk("%s, start to fix index of dai \n", __func__);
-	for (i = 0; i < ARRAY_SIZE(byt_es8316_dais); i++) {
-		if (!strcmp(byt_es8316_dais[i].codec_name, "i2c-ESSX8316:00")) {
-			dai_index = i;
-			printk("%s, dai_index = %d \n", __func__, dai_index);
-			break;
-		}
-	}
-	/* fixup codec name based on HID */
-	i2c_name = sst_acpi_find_name_from_hid(mach->id);
-	if (i2c_name != NULL) {
-		snprintf(byt_es8316_codec_name, sizeof(byt_es8316_codec_name),
-			"%s%s", "i2c-", i2c_name);
-		printk("%s, i2c_name = %s\n", __func__, i2c_name);
-	}
 
 	snd_soc_card_set_drvdata(&byt_es8316_card, priv);
 	ret_val = snd_soc_register_card(&byt_es8316_card);
 	if (ret_val) {
-		printk("snd_soc_register_card failed %d\n", ret_val);
 		return ret_val;
 	}
 	platform_set_drvdata(pdev, &byt_es8316_card);
 
         priv->mclk = devm_clk_get(&pdev->dev, "pmc_plt_clk_3");
-	printk("Exit %s\n", __func__);
 	return ret_val;
 }
-
-static const struct acpi_device_id byt_acpi_match[] = {
-	{ "808622A8", 0 },
-	{ "ESSX8316", 0 },
-	{},
-};
-MODULE_DEVICE_TABLE(acpi, byt_acpi_match);
 
 static struct platform_driver snd_byt_es8316_mc_driver = {
 	.driver = {
 		.name = "cht-bsw-es8316",
-		.acpi_match_table = ACPI_PTR(byt_acpi_match),
-		.pm = &snd_soc_pm_ops,
 	},
 	.probe = snd_byt_es8316_mc_probe,
 };
