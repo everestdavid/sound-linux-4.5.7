@@ -2,8 +2,8 @@
  * ALSA SoC ES7242 adc driver
  *
  * Author:      David Yang, <yangxiaohua@everest-semi.com>
- *												or 
- *												  <info@everest-semi.com>
+ *		or 
+ *		<info@everest-semi.com>
  * Copyright:   (C) 2017 Everest Semiconductor Co Ltd.,
  *
  * Based on sound/soc/codecs/wm8731.c by Richard Purdie
@@ -28,8 +28,10 @@
 #include <sound/pcm.h>
 #include <sound/pcm_params.h>
 #include <sound/soc.h>
+#include <sound/soc-dapm.h>
 #include <sound/tlv.h>
 #include <sound/initval.h>
+#include <linux/regmap.h>
 
 #include "es7242.h"
 
@@ -101,22 +103,22 @@ static const struct snd_kcontrol_new es7242_snd_controls[] = {
 
 /* Analog Input MUX */
 static const char * const es7242_analog_in_txt[] = {
-		"Line1",
-		"Line2",
-		"Line3",
-		"Line4"
-		};
+	"Line1",
+	"Line2",
+	"Line3",
+	"Line4"
+};
 static const unsigned int es7242_analog_in_values[] = {
-		1,
-		2,
-		4,
-		8
-		};		
+	1,
+	2,
+	4,
+	8
+};		
 static const struct soc_enum es7242_analog_input_enum =
         SOC_VALUE_ENUM_SINGLE(ES7242_ANACTL1_REG08, 0, 15,
-                              ARRAY_SIZE(es7242_analog_in_txt),
-                               es7242_analog_in_txt,
-                               es7242_analog_in_values);
+		ARRAY_SIZE(es7242_analog_in_txt),
+		es7242_analog_in_txt,
+		es7242_analog_in_values);
 static const struct snd_kcontrol_new es7242_analog_in_mux_controls =
          SOC_DAPM_ENUM("Route", es7242_analog_input_enum);
 
@@ -176,8 +178,8 @@ static const struct _coeff_div coeff_div[] = {
 	{12288000, 24000 , 0, 0x04 , 0x20, 8 , 32},
 	{12288000, 32000 , 0, 0x03 , 0x18, 6 , 32},
 	{12288000, 48000 , 0, 0x02 , 0x10, 4 , 32},
-  {12288000, 64000 , 1, 0x03 , 0x0c, 3 , 32},  
-  {12288000, 96000 , 1, 0x02 , 0x08, 2 , 32},   
+	{12288000, 64000 , 1, 0x03 , 0x0c, 3 , 32},  
+	{12288000, 96000 , 1, 0x02 , 0x08, 2 , 32},   
 	/* 11.2896MHZ */
 	{11289600, 11025 , 0, 0x08 , 0x40, 16, 32},
 	{11289600, 22050 , 0, 0x04 , 0x20, 8 , 32},
@@ -194,7 +196,7 @@ static const struct _coeff_div coeff_div[] = {
 	{12000000, 32000 , 0, 0x03 , 0x8a, 5 , 31},
 	{12000000, 44100 , 0, 0x02 , 0x11, 4 , 34},	
 	{12000000, 48000 , 0, 0x02 , 0x85, 5 , 31},
-  {12000000, 96000 , 1, 0x02 , 0x85, 1 , 31}, 
+	{12000000, 96000 , 1, 0x02 , 0x85, 1 , 31}, 
 };
 static inline int get_coeff(int mclk, int rate)
 {
@@ -247,8 +249,6 @@ static int es7242_set_dai_sysclk(struct snd_soc_dai *codec_dai,
 	struct snd_soc_codec *codec = codec_dai->codec;
 	struct es7242_priv *es7242 = snd_soc_codec_get_drvdata(codec);
 
-	DBG("Enter::%s----%d, freq:%ld\n",__FUNCTION__,__LINE__, freq);
-		
 	switch (freq) {
 	case 11289600:
 	case 22579200:
@@ -274,74 +274,74 @@ static int es7242_set_dai_sysclk(struct snd_soc_dai *codec_dai,
 static int es7242_set_dai_fmt(struct snd_soc_dai *codec_dai,
 		unsigned int fmt)
 {
-  struct snd_soc_codec *codec = codec_dai->codec;
-    u8 iface = 0;
-		u8 adciface = 0;
-    alsa_dbg("%s----%d, fmt[%02x]\n",__FUNCTION__,__LINE__,fmt);
+	struct snd_soc_codec *codec = codec_dai->codec;
+	u8 iface = 0;
+	u8 adciface = 0;
 
-    adciface    = snd_soc_read(codec, ES7242_SDPFMT_REG01);
-		iface    = snd_soc_read(codec, ES7242_MODECFG_REG00);
+	adciface    = snd_soc_read(codec, ES7242_SDPFMT_REG01);
+	iface    = snd_soc_read(codec, ES7242_MODECFG_REG00);
 
-    /* set master/slave audio interface */
-    switch (fmt & SND_SOC_DAIFMT_MASTER_MASK) {
-        case SND_SOC_DAIFMT_CBM_CFM:    // MASTER MODE
-        	  alsa_dbg("es7242 in master mode");
-            iface |= 0x02;
-            break;
-        case SND_SOC_DAIFMT_CBS_CFS:    // SLAVE MODE
-        	  alsa_dbg("es7242 in slave mode");
-            iface &= 0xfd;
-            break;
-        default:
-            return -EINVAL;
-    }
+	/* set master/slave audio interface */
+	switch (fmt & SND_SOC_DAIFMT_MASTER_MASK) {
+	case SND_SOC_DAIFMT_CBM_CFM:    // MASTER MODE
+		alsa_dbg("es7242 in master mode");
+		iface |= 0x02;
+		break;
+	case SND_SOC_DAIFMT_CBS_CFS:    // SLAVE MODE
+		alsa_dbg("es7242 in slave mode");
+		iface &= 0xfd;
+		break;
+	default:
+		return -EINVAL;
+	}
 
 
-    /* interface format */
+	/* interface format */
 
-    switch (fmt & SND_SOC_DAIFMT_FORMAT_MASK) {
+	switch (fmt & SND_SOC_DAIFMT_FORMAT_MASK) {
         case SND_SOC_DAIFMT_I2S:
-            adciface &= 0xFC;                   
-            break;
-        case SND_SOC_DAIFMT_RIGHT_J:
-            return -EINVAL;
+		adciface &= 0xFC;                   
+		break;
+       	case SND_SOC_DAIFMT_RIGHT_J:
+		return -EINVAL;
         case SND_SOC_DAIFMT_LEFT_J:
-            adciface &= 0xFC;                   
-            adciface |= 0x01;                             
-            break;
+            	adciface &= 0xFC;                   
+            	adciface |= 0x01;                             
+		break;
         case SND_SOC_DAIFMT_DSP_A:
-            adciface &= 0xDC;                   
-            adciface |= 0x03;                   
-            break;
+        	adciface &= 0xDC;                   
+            	adciface |= 0x03;                   
+		break;
         case SND_SOC_DAIFMT_DSP_B:
-            adciface &= 0xDC;                   
-            adciface |= 0x23;                   
-            break;
+        	adciface &= 0xDC;                   
+        	adciface |= 0x23;                   
+        	break;
         default:
-            return -EINVAL;
-    }
+            	return -EINVAL;
+    	}
 
-    /* clock inversion */
-    adciface &= 0xbF; 
-    switch (fmt & SND_SOC_DAIFMT_INV_MASK) {
-        case SND_SOC_DAIFMT_NB_NF:  
-            adciface &= 0xbF;                  		
-            break;
+    	/* clock inversion */
+    	adciface &= 0xbF; 
+    	switch (fmt & SND_SOC_DAIFMT_INV_MASK) {
+    	case SND_SOC_DAIFMT_NB_NF:  
+		adciface &= 0xbF;                  		
+        	break;
         case SND_SOC_DAIFMT_IB_IF:          
-            adciface |= 0x60;            
-            break;
+            	adciface |= 0x60;            
+        	break;
         case SND_SOC_DAIFMT_IB_NF:        
-            adciface |= 0x40;           
-            break;
+            	adciface |= 0x40;           
+        	break;
         case SND_SOC_DAIFMT_NB_IF:
-            adciface |= 0x20;            
-            break;
+            	adciface |= 0x20;            
+        	break;
         default:
-            return -EINVAL;
-    }
-    snd_soc_update_bits(codec, ES7242_MODECFG_REG00, 0x02, iface);
-    snd_soc_update_bits(codec, ES7242_SDPFMT_REG01, 0x03, adciface);
-    return 0;
+            	return -EINVAL;
+    	}
+    	snd_soc_update_bits(codec, ES7242_MODECFG_REG00, 0x02, iface);
+    	snd_soc_update_bits(codec, ES7242_SDPFMT_REG01, 0x03, adciface);
+    	
+	return 0;
 }
 
 static int es7242_pcm_startup(struct snd_pcm_substream *substream,
@@ -350,8 +350,6 @@ static int es7242_pcm_startup(struct snd_pcm_substream *substream,
 	struct snd_soc_codec *codec = dai->codec;
 	struct es7242_priv *es7242 = snd_soc_codec_get_drvdata(codec);
         
-	DBG("Enter::%s----%d  es7242->sysclk=%d\n",__FUNCTION__,__LINE__,es7242->sysclk);
-
 	/* The set of sample rates that can be supported depends on the
 	 * MCLK supplied to the CODEC - enforce this.
 	 */
@@ -383,7 +381,6 @@ static int es7242_pcm_hw_params(struct snd_pcm_substream *substream,
 	u16 adcdiv   = snd_soc_read(codec, ES7242_CLKDIV_REG04) & 0xf0; 
 	u16 adclrckdiv = snd_soc_read(codec, ES7242_LRCDIV_REG02); 
 	int coeff;
-	int retv;
 
 	coeff = get_coeff(es7242->sysclk, params_rate(params));
 	if (coeff < 0) {
@@ -403,7 +400,7 @@ static int es7242_pcm_hw_params(struct snd_pcm_substream *substream,
 	if (coeff < 0) {
 		dev_err(codec->dev,
 			"Unable to configure sample rate %dHz with %dHz MCLK\n",
-			params_rate(params), es8316->sysclk);
+			params_rate(params), es7242->sysclk);
 		return coeff;
 	}
 
@@ -438,11 +435,13 @@ static int es7242_pcm_hw_params(struct snd_pcm_substream *substream,
 		
 		adclrckdiv |= coeff_div[coeff].lrckdiv;
 		
+		speedmode |= (coeff_div[coeff].speedmode << 2);
 
 		snd_soc_update_bits(codec, ES7242_STMOSR_REG0D, 0x3f, osrate);
 		snd_soc_update_bits(codec, ES7242_BCKDIV_REG03, 0x3f, bclkdiv);
 		snd_soc_update_bits(codec, ES7242_CLKDIV_REG04, 0x0f, adcdiv);
 		snd_soc_update_bits(codec, ES7242_LRCDIV_REG02, 0xff, adclrckdiv);
+		snd_soc_update_bits(codec, ES7242_MODECFG_REG00, 0x0c, speedmode);
 	}
 
 	return 0;
@@ -546,7 +545,7 @@ static int es7242_probe(struct snd_soc_codec *codec)
 		return ret;
 	}
 
-	snd_soc_write(codec, ES7242_MODECFG_REG00, 0x01)//enter into hardware mode
+	snd_soc_write(codec, ES7242_MODECFG_REG00, 0x01);//enter into hardware mode
 
 	snd_soc_write(codec, ES7242_STATECTL_REG06, 0x18); //soft reset codec
 	if(es7242->tdm)
@@ -607,7 +606,7 @@ static int es7242_i2c_probe(struct i2c_client *i2c,
 	if (!i2c_check_functionality(i2c->adapter, I2C_FUNC_SMBUS_BYTE_DATA))
 		return -EINVAL;
 
-	es7242 = devm_kzalloc(&i2c->dev, sizeof(struct es7242), GFP_KERNEL);
+	es7242 = devm_kzalloc(&i2c->dev, sizeof(struct es7242_priv), GFP_KERNEL);
 	if (es7242 == NULL)
 		return -ENOMEM;
 
@@ -667,3 +666,4 @@ module_exit(es7242_exit);
 MODULE_DESCRIPTION("ASoC ES7242 audio adc driver");
 MODULE_AUTHOR("David Yang <yangxiaohua@everest-semi.com> / info@everest-semi.com");
 MODULE_LICENSE("GPL v2");
+

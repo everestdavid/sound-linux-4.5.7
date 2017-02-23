@@ -320,6 +320,7 @@ static int snd_byt_es8316_mc_probe(struct platform_device *pdev)
 	platform_set_drvdata(pdev, &byt_es8316_card);
 
         priv->mclk = devm_clk_get(&pdev->dev, "pmc_plt_clk_3");
+#if 0
 	if (IS_ERR(priv->mclk)) {
 			ret_val = PTR_ERR(priv->mclk);
 
@@ -335,6 +336,7 @@ static int snd_byt_es8316_mc_probe(struct platform_device *pdev)
 			if (ret_val != -ENOENT)
 				return ret_val;
 	}
+#endif
 	return ret_val;
 }
 
