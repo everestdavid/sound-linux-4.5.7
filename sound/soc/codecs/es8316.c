@@ -320,8 +320,8 @@ static const struct snd_soc_dapm_widget es8316_dapm_widgets[] = {
 	SND_SOC_DAPM_INPUT("MIC1"),
 	SND_SOC_DAPM_INPUT("MIC2"),
 
-	SND_SOC_DAPM_MICBIAS("micbias", SND_SOC_NOPM,
-		0, 0),
+	SND_SOC_DAPM_MICBIAS("micbias", ES8316_SYS_PDN_REG0D,
+		5, 1),
 	/* Input MUX */
 	SND_SOC_DAPM_MUX("Differential Mux", SND_SOC_NOPM, 0, 0,
 		&es8316_analog_in_mux_controls),
@@ -341,14 +341,14 @@ static const struct snd_soc_dapm_widget es8316_dapm_widgets[] = {
 		ES8316_SDP_ADCFMT_REG0A, 6, 0),
 
 	SND_SOC_DAPM_AIF_IN("I2S IN", "I2S1 Playback", 0,
-		SND_SOC_NOPM, 0, 0),
+		ES8316_SDP_DACFMT_REG0B, 6, 0),
 
 	/*  DACs DATA SRC MUX */
 	SND_SOC_DAPM_MUX("DAC SRC Mux", SND_SOC_NOPM, 0, 0,
 		&es8316_dacsrc_mux_controls),
 	/*  DACs  */
-	SND_SOC_DAPM_DAC("Right DAC", NULL, SND_SOC_NOPM, 0, 1),
-	SND_SOC_DAPM_DAC("Left DAC", NULL, SND_SOC_NOPM, 4, 1),
+	SND_SOC_DAPM_DAC("Right DAC", NULL, ES8316_DAC_PDN_REG2F, 0, 1),
+	SND_SOC_DAPM_DAC("Left DAC", NULL, ES8316_DAC_PDN_REG2F, 4, 1),
 
 	/* Headphone Output Side */
 	/* hpmux for hp mixer */
@@ -357,23 +357,17 @@ static const struct snd_soc_dapm_widget es8316_dapm_widgets[] = {
 	SND_SOC_DAPM_MUX("Right Hp mux", SND_SOC_NOPM, 0, 0,
 		&es8316_right_hpmux_controls),
 	/* Output mixer  */
-	SND_SOC_DAPM_MIXER("Left Hp mixer", SND_SOC_NOPM,
+	SND_SOC_DAPM_MIXER("Left Hp mixer", ES8316_HPMIX_PDN_REG15,
 		4, 1, &es8316_out_left_mix[0],
 		ARRAY_SIZE(es8316_out_left_mix)),
-	SND_SOC_DAPM_MIXER("Right Hp mixer", SND_SOC_NOPM,
+	SND_SOC_DAPM_MIXER("Right Hp mixer", ES8316_HPMIX_PDN_REG15,
 		0, 1, &es8316_out_right_mix[0],
 		ARRAY_SIZE(es8316_out_right_mix)),
 	/* Ouput charge pump */
-	SND_SOC_DAPM_PGA("HPCP L", SND_SOC_NOPM,
+	SND_SOC_DAPM_PGA("HPCP L", ES8316_CPHP_OUTEN_REG17,
 		6, 0, NULL, 0),
-	SND_SOC_DAPM_PGA("HPCP R", SND_SOC_NOPM,
+	SND_SOC_DAPM_PGA("HPCP R", ES8316_CPHP_OUTEN_REG17,
 		2, 0, NULL, 0),
-
-	/* Ouput Driver */
-	SND_SOC_DAPM_PGA("HPVOL L", SND_SOC_NOPM,
-		0, 0, NULL, 0),
-	SND_SOC_DAPM_PGA("HPVOL R", SND_SOC_NOPM,
-		0, 0, NULL, 0),
 
 	/* Output Lines */
 	SND_SOC_DAPM_OUTPUT("HPOL"),
@@ -386,7 +380,8 @@ static const struct snd_soc_dapm_route es8316_dapm_routes[] = {
 	 */
 	{"MIC1", NULL, "micbias"},
 	{"MIC2", NULL, "micbias"},
-
+	{"DMIC", NULL, "micbias"},
+	
 	{"Differential Mux", "lin1-rin1", "MIC1"},
 	{"Differential Mux", "lin2-rin2", "MIC2"},
 	{"Line input PGA", NULL, "Differential Mux"},
@@ -394,18 +389,25 @@ static const struct snd_soc_dapm_route es8316_dapm_routes[] = {
 	{"Mono ADC", NULL, "Line input PGA"},
 
 	{"Digital Mic Mux", "dmic disable", "Mono ADC"},
+	{"Digital Mic Mux", "dmic data at high level", "DMIC"},
+	{"Digital Mic Mux", "dmic data at low level", "DMIC"},
 
 	{"I2S OUT", NULL, "Digital Mic Mux"},
 	/*
 	 * playback route map
 	 */
 	{"DAC SRC Mux", "LDATA TO LDAC, RDATA TO RDAC", "I2S IN"},
+	{"DAC SRC Mux", "LDATA TO LDAC, LDATA TO RDAC", "I2S IN"},
+	{"DAC SRC Mux", "RDATA TO LDAC, RDATA TO RDAC", "I2S IN"},
+	{"DAC SRC Mux", "RDATA TO LDAC, LDATA TO RDAC", "I2S IN"},
 
 	{"Left DAC", NULL, "DAC SRC Mux"},
 	{"Right DAC", NULL, "DAC SRC Mux"},
 
+	{"Left Hp mux", "lin-rin with Boost", "Differential Mux"},
 	{"Left Hp mux", "lin-rin with Boost and PGA", "Line input PGA"},
 
+	{"Right Hp mux", "lin-rin with Boost", "Differential Mux"},
 	{"Right Hp mux", "lin-rin with Boost and PGA", "Line input PGA"},
 
 	{"Left Hp mixer", "LLIN Switch", "Left Hp mux"},
@@ -417,11 +419,8 @@ static const struct snd_soc_dapm_route es8316_dapm_routes[] = {
 	{"HPCP L", NULL, "Left Hp mixer"},
 	{"HPCP R", NULL, "Right Hp mixer"},
 
-	{"HPVOL L", NULL, "HPCP L"},
-	{"HPVOL R", NULL, "HPCP R"},
-
-	{"HPOL", NULL, "HPVOL L"},
-	{"HPOR", NULL, "HPVOL R"},
+	{"HPOL", NULL, "HPCP L"},
+	{"HPOR", NULL, "HPCP R"},
 };
 
 struct _coeff_div {
@@ -1132,7 +1131,7 @@ static struct i2c_driver es8316_i2c_driver = {
 		.name = "es8316",
 		.owner = THIS_MODULE,
 		.acpi_match_table = ACPI_PTR(es8316_acpi_match),
-		//.of_match_table = of_match_ptr(es8316_of_match),
+		.of_match_table = of_match_ptr(es8316_of_match),
 	},
 	.shutdown = es8316_i2c_shutdown,
 	.probe = es8316_i2c_probe,
@@ -1141,7 +1140,6 @@ static struct i2c_driver es8316_i2c_driver = {
 	.id_table = es8316_i2c_id,
 	.address_list = normal_i2c,
 };
-
 struct i2c_board_info es8316_info = {I2C_BOARD_INFO("ESSX8316", 0x11)};
 static int __init es8316_init(void)
 {
