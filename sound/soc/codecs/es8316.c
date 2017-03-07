@@ -1130,9 +1130,14 @@ static struct i2c_driver es8316_i2c_driver = {
 	.driver = {
 		.name = "es8316",
 		.owner = THIS_MODULE,
+#ifdef CONFIG_ACPI
 		.acpi_match_table = ACPI_PTR(es8316_acpi_match),
+#endif
+
+#if defined(CONFIG_OF)
 		.of_match_table = of_match_ptr(es8316_of_match),
-	},
+#endif	
+		},
 	.shutdown = es8316_i2c_shutdown,
 	.probe = es8316_i2c_probe,
 	.remove = es8316_i2c_remove,
