@@ -16,15 +16,9 @@
  *
  * ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
  */
-#include <linux/init.h>
 #include <linux/module.h>
 #include <linux/platform_device.h>
-#include <linux/acpi.h>
-#include <linux/device.h>
-#include <linux/dmi.h>
 #include <linux/slab.h>
-#include <asm/cpu_device_id.h>
-#include <asm/platform_sst_audio.h>
 #include <linux/clk.h>
 #include <sound/pcm.h>
 #include <sound/pcm_params.h>
@@ -32,8 +26,6 @@
 #include <sound/jack.h>
 #include "../../codecs/es8316.h"
 #include "../atom/sst-atom-controls.h"
-#include "../common/sst-acpi.h"
-#include "../common/sst-dsp.h"
 struct byt_es8316_private {
 	struct clk *mclk;
 	struct snd_soc_jack jack;
@@ -42,6 +34,19 @@ struct byt_es8316_private {
 };
 
 #define BYT_CODEC_DAI1	"ES8316 HiFi"
+
+static struct snd_soc_jack cht_bsw_headset;
+/* Headset jack detection DAPM pins */
+static struct snd_soc_jack_pin cht_bsw_headset_pins[] = {
+        {
+                .pin = "Headset Mic",
+                .mask = SND_JACK_MICROPHONE,
+        },
+        {
+                .pin = "Headphone",
+                .mask = SND_JACK_HEADPHONE,
+        },
+};
 
 static inline struct snd_soc_dai *byt_get_codec_dai(struct snd_soc_card *card)
 {
@@ -92,8 +97,9 @@ static int platform_clock_control(struct snd_soc_dapm_widget *w,
 static const struct snd_soc_dapm_widget byt_es8316_widgets[] = {
 	SND_SOC_DAPM_HP("Headphone", NULL),
 	SND_SOC_DAPM_MIC("Headset Mic", NULL),
-	SND_SOC_DAPM_MIC("Internal Mic", NULL),
-	SND_SOC_DAPM_SPK("Speaker", NULL),
+	SND_SOC_DAPM_MIC("Int Mic", NULL),
+	SND_SOC_DAPM_MIC("Digital Mic", NULL),
+	SND_SOC_DAPM_SPK("Ext Spk", NULL),
 	SND_SOC_DAPM_SUPPLY("Platform Clock", SND_SOC_NOPM, 0, 0,
 			    platform_clock_control, SND_SOC_DAPM_PRE_PMU |
 			    SND_SOC_DAPM_POST_PMD),
@@ -102,13 +108,18 @@ static const struct snd_soc_dapm_widget byt_es8316_widgets[] = {
 
 
 static const struct snd_soc_dapm_route byt_es8316_audio_map[] = {
-        {"MIC1", NULL, "Headset Mic"},
-        {"MIC2", NULL, "Internal Mic"},
+        {"Headset Mic", NULL, "micbias"},
+        {"Int Mic", NULL, "micbias"},
+        {"Digital Mic", NULL, "micbias"},
+        
+	{"MIC1", NULL, "Headset Mic"},
+        {"MIC2", NULL, "Int Mic"},
+        {"DMIC", NULL, "Digital Mic"},
  
         {"Headphone", NULL, "HPOL"},
         {"Headphone", NULL, "HPOR"},
-        {"Speaker", NULL, "HPOL"},
-        {"Speaker", NULL, "HPOR"},
+        {"Ext Spk", NULL, "HPOL"},
+        {"Ext Spk", NULL, "HPOR"},
 
 	{"Playback", NULL, "ssp2 Tx"},
         {"ssp2 Tx", NULL, "codec_out0"},
@@ -119,16 +130,20 @@ static const struct snd_soc_dapm_route byt_es8316_audio_map[] = {
 
         {"Headphone", NULL, "Platform Clock"},
         {"Headset Mic", NULL, "Platform Clock"},
-        {"Internal Mic", NULL, "Platform Clock"},
-        {"Speaker", NULL, "Platform Clock"},
+        {"Int Mic", NULL, "Platform Clock"},
+        {"Ext Spk", NULL, "Platform Clock"},
+        {"Digital Mic", NULL, "Platform Clock"},
 
+        {"Playback", NULL, "Platform Clock"},
+        {"Capture", NULL, "Platform Clock"},
 };
 
 static const struct snd_kcontrol_new byt_es8316_controls[] = {
 	SOC_DAPM_PIN_SWITCH("Headphone"),
 	SOC_DAPM_PIN_SWITCH("Headset Mic"),
-	SOC_DAPM_PIN_SWITCH("Internal Mic"),
-	SOC_DAPM_PIN_SWITCH("Speaker"),
+	SOC_DAPM_PIN_SWITCH("Int Mic"),
+	SOC_DAPM_PIN_SWITCH("Digital Mic"),
+	SOC_DAPM_PIN_SWITCH("Ext Spk"),
 };
 
 
@@ -139,7 +154,6 @@ static int byt_es8316_aif1_hw_params(struct snd_pcm_substream *substream,
 {
 	struct snd_soc_pcm_runtime *rtd = substream->private_data;
 	struct snd_soc_dai *codec_dai = rtd->codec_dai;
-
 	int ret;
 
 	ret = snd_soc_dai_set_sysclk(codec_dai, 19200000,
@@ -168,7 +182,11 @@ static int byt_es8316_init(struct snd_soc_pcm_runtime *runtime)
 		clk_disable_unprepare(priv->mclk);
 	}
 	ret = clk_set_rate(priv->mclk, 19200000);
-	
+
+	ret = snd_soc_card_jack_new(runtime->card, "Headset",
+                SND_JACK_HEADSET | SND_JACK_BTN_0 |
+                SND_JACK_BTN_1 | SND_JACK_BTN_2, &cht_bsw_headset,
+                cht_bsw_headset_pins, ARRAY_SIZE(cht_bsw_headset_pins));
 	return ret;
 }
 
@@ -237,8 +255,9 @@ static struct snd_soc_dai_link byt_es8316_dais[] = {
 		.codec_dai_name = "snd-soc-dummy-dai",
 		.codec_name = "snd-soc-dummy",
 		.platform_name = "sst-mfld-platform",
-		.ignore_suspend = 1,
+		.nonatomic = true,
 		.dynamic = 1,
+		.init = byt_es8316_init,
 		.dpcm_playback = 1,
 		.dpcm_capture = 1,
 		.ops = &byt_es8316_aif1_ops,
@@ -251,7 +270,6 @@ static struct snd_soc_dai_link byt_es8316_dais[] = {
 		.codec_dai_name = "snd-soc-dummy-dai",
 		.codec_name = "snd-soc-dummy",
 		.platform_name = "sst-mfld-platform",
-		.ignore_suspend = 1,
 		.nonatomic = true,
 		.dynamic = 1,
 		.dpcm_playback = 1,
@@ -266,7 +284,16 @@ static struct snd_soc_dai_link byt_es8316_dais[] = {
 		.codec_name = "snd-soc-dummy",
 		.platform_name = "sst-mfld-platform",
 	},
-
+	/* CODEC<->CODEC link */
+	{
+		.name = "Cherrytrail Codec-Loop Port",
+		.stream_name = "Cherrytrail Codec-Loop",
+		.cpu_dai_name = "ssp2-port",
+		.platform_name = "sst-mfld-platform",
+		.codec_dai_name = "ES8316 HiFi",
+		.codec_name = "es8316.1-0011",
+		.params = &byt_es8316_dai_params,
+	},
 		/* back ends */
 	{
 		.name = "SSP2-Codec",
@@ -274,12 +301,12 @@ static struct snd_soc_dai_link byt_es8316_dais[] = {
 		.cpu_dai_name = "ssp2-port", /* overwritten for ssp0 routing */
 		.platform_name = "sst-mfld-platform",
 		.no_pcm = 1,
+		.nonatomic = true,
 		.codec_dai_name = "ES8316 HiFi", /* changed w/ quirk */
 		.codec_name = "es8316.1-0011", /* overwritten with HID */
 		.dai_fmt = SND_SOC_DAIFMT_I2S | SND_SOC_DAIFMT_NB_NF
 						| SND_SOC_DAIFMT_CBS_CFS,
 		.be_hw_params_fixup = byt_es8316_codec_fixup,
-		.ignore_suspend = 1,
 		.dpcm_playback = 1,
 		.dpcm_capture = 1,
 		.init = byt_es8316_init,
@@ -290,7 +317,7 @@ static struct snd_soc_dai_link byt_es8316_dais[] = {
 
 /* SoC card */
 static struct snd_soc_card byt_es8316_card = {
-	.name = "cht-es8316",
+	.name = "cht-bsw-es8316",
 	.owner = THIS_MODULE,
 	.dai_link = byt_es8316_dais,
 	.num_links = ARRAY_SIZE(byt_es8316_dais),
@@ -313,14 +340,13 @@ static int snd_byt_es8316_mc_probe(struct platform_device *pdev)
 	byt_es8316_card.dev = &pdev->dev;
 
 	snd_soc_card_set_drvdata(&byt_es8316_card, priv);
-	ret_val = snd_soc_register_card(&byt_es8316_card);
+	ret_val = devm_snd_soc_register_card(&pdev->dev, &byt_es8316_card);
 	if (ret_val) {
 		return ret_val;
 	}
 	platform_set_drvdata(pdev, &byt_es8316_card);
 
         priv->mclk = devm_clk_get(&pdev->dev, "pmc_plt_clk_3");
-#if 0
 	if (IS_ERR(priv->mclk)) {
 			ret_val = PTR_ERR(priv->mclk);
 
@@ -336,7 +362,6 @@ static int snd_byt_es8316_mc_probe(struct platform_device *pdev)
 			if (ret_val != -ENOENT)
 				return ret_val;
 	}
-#endif
 	return ret_val;
 }
 
