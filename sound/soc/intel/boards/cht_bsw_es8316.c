@@ -257,7 +257,6 @@ static struct snd_soc_dai_link byt_es8316_dais[] = {
 		.platform_name = "sst-mfld-platform",
 		.nonatomic = true,
 		.dynamic = 1,
-		.init = byt_es8316_init,
 		.dpcm_playback = 1,
 		.dpcm_capture = 1,
 		.ops = &byt_es8316_aif1_ops,
@@ -283,16 +282,6 @@ static struct snd_soc_dai_link byt_es8316_dais[] = {
 		.codec_dai_name = "snd-soc-dummy-dai",
 		.codec_name = "snd-soc-dummy",
 		.platform_name = "sst-mfld-platform",
-	},
-	/* CODEC<->CODEC link */
-	{
-		.name = "Cherrytrail Codec-Loop Port",
-		.stream_name = "Cherrytrail Codec-Loop",
-		.cpu_dai_name = "ssp2-port",
-		.platform_name = "sst-mfld-platform",
-		.codec_dai_name = "ES8316 HiFi",
-		.codec_name = "es8316.1-0011",
-		.params = &byt_es8316_dai_params,
 	},
 		/* back ends */
 	{
